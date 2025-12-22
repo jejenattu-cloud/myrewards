@@ -23,25 +23,7 @@ const DEFAULT_DB: AppDatabase = {
     currency: 'USD ($)',
     timezone: 'Pacific Standard Time (PST)'
   },
-  gateways: [
-    { 
-      id: '1', 
-      provider: 'Gmail', 
-      fromAddress: 'nashaubrown@gmail.com', 
-      apiKey: '', 
-      accessToken: 'MOCK_OAUTH_TOKEN_NASHAUBROWN',
-      authType: 'oauth',
-      status: 'Active' 
-    },
-    { 
-      id: '2', 
-      provider: 'SendGrid', 
-      fromAddress: 'hello@beanandleaf.com', 
-      apiKey: 'SG.default_key', 
-      authType: 'api_key',
-      status: 'Active' 
-    }
-  ],
+  gateways: [], // Start with no pre-configured gateways
   customers: MOCK_CUSTOMERS,
   campaigns: MOCK_CAMPAIGNS,
   rewards: MOCK_REWARDS,
@@ -61,23 +43,6 @@ export const StorageService = {
     }
     try {
       const parsed = JSON.parse(data);
-      
-      // Migration: Ensure existing Gmail gateways use OAuth
-      if (parsed.gateways) {
-        parsed.gateways = parsed.gateways.map((g: any) => {
-          if (g.provider === 'Gmail' && g.authType !== 'oauth') {
-            return {
-              ...g,
-              authType: 'oauth',
-              accessToken: g.accessToken || 'MOCK_OAUTH_TOKEN_NASHAUBROWN',
-              apiKey: '' // Clear API key for OAuth
-            };
-          }
-          return g;
-        });
-        this.save(parsed);
-      }
-      
       return parsed;
     } catch (e) {
       console.error("Database corruption detected. Resetting to defaults.");
