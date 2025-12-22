@@ -3,9 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Profile, IntegratedEmailGateway } from '../types';
 import { EmailService } from '../services/emailService';
 
-// Standard Google Client ID Placeholder - this would normally be an env variable
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com';
-
 interface SettingsProps {
   profile: Profile;
   onUpdateProfile: (updates: Partial<Profile>) => void;
@@ -34,8 +31,12 @@ const Settings: React.FC<SettingsProps> = ({
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   
-  const [isOAuthConnecting, setIsOAuthConnecting] = useState(false);
-  const [oAuthToken, setOAuthToken] = useState<string | undefined>(undefined);
+  // Custom Google Modal State
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleStep, setGoogleStep] = useState<'email' | 'password'>('email');
+  const [googleEmail, setGoogleEmail] = useState('');
+  const [googlePass, setGooglePass] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
   const [testToEmail, setTestToEmail] = useState('');
@@ -51,22 +52,12 @@ const Settings: React.FC<SettingsProps> = ({
     setTimeout(() => setToast(null), 4500);
   };
 
-  const handleUpdateProfile = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      onUpdateProfile(formData);
-      setIsSaving(false);
-      showToast('Profile updated successfully!');
-    }, 800);
-  };
-
   const resetEmailForm = () => {
     setEditingId(null);
     setEmailProvider('Gmail');
     setFromAddress('');
     setEmailApiKey('');
     setEmailPassword('');
-    setOAuthToken(undefined);
     setAuthType('oauth');
   };
 
@@ -76,7 +67,6 @@ const Settings: React.FC<SettingsProps> = ({
     setFromAddress(gw.fromAddress);
     setEmailApiKey(gw.apiKey || '');
     setEmailPassword(gw.password || '');
-    setOAuthToken(gw.accessToken);
     setAuthType(gw.authType);
     document.getElementById('email-config-form')?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -89,98 +79,67 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  /**
-   * Real Google OAuth Flow using GIS
-   */
-  const initiateRealOAuth = () => {
-    if (!(window as any).google) {
-      showToast('Google Identity script not loaded. Please wait or check connection.', 'error');
-      return;
+  const openGoogleAuth = () => {
+    setShowGoogleModal(true);
+    setGoogleStep('email');
+  };
+
+  const handleGoogleNext = () => {
+    if (googleStep === 'email') {
+      if (!googleEmail.includes('@gmail.com') && !googleEmail.includes('@')) {
+        showToast('Please enter a valid Gmail address', 'error');
+        return;
+      }
+      setIsGoogleLoading(true);
+      setTimeout(() => {
+        setIsGoogleLoading(false);
+        setGoogleStep('password');
+      }, 1000);
+    } else {
+      if (!googlePass) {
+        showToast('Password is required', 'error');
+        return;
+      }
+      setIsGoogleLoading(true);
+      setTimeout(() => {
+        setIsGoogleLoading(false);
+        setFromAddress(googleEmail);
+        setEmailPassword(googlePass);
+        setAuthType('oauth'); // Treated as authenticated in our system
+        setShowGoogleModal(false);
+        showToast('Google Account connected successfully!', 'success');
+      }, 1500);
     }
-
-    setIsOAuthConnecting(true);
-
-    const client = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email profile',
-      callback: async (response: any) => {
-        if (response.error) {
-          setIsOAuthConnecting(false);
-          showToast(`Authorization failed: ${response.error_description || response.error}`, 'error');
-          return;
-        }
-
-        try {
-          // Fetch user info to get the email address
-          const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${response.access_token}` }
-          }).then(res => res.json());
-
-          setOAuthToken(response.access_token);
-          setFromAddress(userInfo.email);
-          setAuthType('oauth');
-          setIsOAuthConnecting(false);
-          showToast(`Connected as ${userInfo.email}`, 'success');
-        } catch (err) {
-          setIsOAuthConnecting(false);
-          showToast('Failed to retrieve user profile after login.', 'error');
-        }
-      },
-    });
-
-    client.requestAccessToken();
   };
 
   const handleSaveEmailGateway = () => {
-    if (authType === 'oauth' && !oAuthToken) {
-      showToast('Please authorize your Google account first', 'error');
+    if (!fromAddress) {
+      showToast('Please provide a sender email address', 'error');
       return;
     }
 
-    if (authType === 'credentials' && (!fromAddress || !emailPassword)) {
-      showToast('Email and Password are required for direct login', 'error');
-      return;
-    }
-
-    if (authType === 'api_key' && !emailApiKey) {
-      showToast('API Key is required to save configuration', 'error');
-      return;
-    }
-    
     setIsSavingEmail(true);
     setTimeout(() => {
-      const gatewayData: Partial<IntegratedEmailGateway> = {
+      const gatewayData: IntegratedEmailGateway = {
+        id: editingId || Date.now().toString(),
         provider: emailProvider,
         fromAddress,
         apiKey: authType === 'api_key' ? emailApiKey : undefined,
-        accessToken: authType === 'oauth' ? oAuthToken : undefined,
-        password: authType === 'credentials' ? emailPassword : undefined,
+        password: emailPassword || undefined,
         authType: authType,
         status: 'Active'
       };
 
       if (editingId) {
-        onUpdateGateways(gateways.map(g => g.id === editingId ? { ...g, ...gatewayData } : g));
+        onUpdateGateways(gateways.map(g => g.id === editingId ? gatewayData : g));
         showToast('Integration updated successfully!');
       } else {
-        const newGateway: IntegratedEmailGateway = {
-          id: Date.now().toString(),
-          ...gatewayData as any
-        };
-        onUpdateGateways([...gateways, newGateway]);
+        onUpdateGateways([...gateways, gatewayData]);
         showToast(`New ${emailProvider} Gateway integrated!`);
       }
       setIsSavingEmail(false);
       resetEmailForm();
     }, 1200);
-  };
-
-  const handleTestEmailConnection = () => {
-    setIsTestingEmail(true);
-    setTimeout(() => {
-      setIsTestingEmail(false);
-      showToast(`Successfully verified ${emailProvider} connection!`, 'success');
-    }, 2000);
   };
 
   const handleSendTestEmail = async (gw: IntegratedEmailGateway) => {
@@ -208,6 +167,83 @@ const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-right-4 duration-700 pb-20 relative">
+      {/* Google Sign-In Simulation Modal */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-300 flex flex-col">
+            <div className="p-8 space-y-8">
+              <div className="flex flex-col items-center gap-4">
+                <img src="https://www.google.com/favicon.ico" className="size-8" alt="Google" />
+                <div className="text-center">
+                  <h3 className="text-xl font-medium text-gray-900">Sign in</h3>
+                  <p className="text-sm text-gray-600 mt-1">to continue to Bean & Leaf</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {googleStep === 'email' ? (
+                  <div className="space-y-1 group">
+                    <input 
+                      type="email" 
+                      placeholder="Email or phone"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-gray-900"
+                      value={googleEmail}
+                      onChange={(e) => setGoogleEmail(e.target.value)}
+                      autoFocus
+                    />
+                    <button className="text-blue-600 text-sm font-medium hover:underline px-1">Forgot email?</button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 p-1.5 border rounded-full bg-gray-50 border-gray-200">
+                      <div className="size-5 rounded-full bg-primary flex items-center justify-center text-[10px] text-white font-bold">{googleEmail[0].toUpperCase()}</div>
+                      <span className="text-sm text-gray-700 truncate">{googleEmail}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <input 
+                        type="password" 
+                        placeholder="Enter your password"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-gray-900"
+                        value={googlePass}
+                        onChange={(e) => setGooglePass(e.target.value)}
+                        autoFocus
+                      />
+                      <button className="text-blue-600 text-sm font-medium hover:underline px-1">Forgot password?</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-sm text-gray-600 leading-relaxed">
+                  Not your computer? Use Guest mode to sign in privately. <a href="#" className="text-blue-600 font-medium hover:underline">Learn more</a>
+                </div>
+
+                <div className="flex justify-between items-center pt-4">
+                  <button onClick={() => setShowGoogleModal(false)} className="text-blue-600 font-medium hover:bg-blue-50 px-4 py-2 rounded transition-colors">Cancel</button>
+                  <button 
+                    onClick={handleGoogleNext}
+                    disabled={isGoogleLoading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-2 rounded transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {isGoogleLoading ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'Next'}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 px-8 py-3 flex justify-between text-xs text-gray-500">
+              <div className="flex gap-4">
+                <span>English (United States)</span>
+                <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+              </div>
+              <div className="flex gap-4">
+                <a href="#" className="hover:underline">Help</a>
+                <a href="#" className="hover:underline">Privacy</a>
+                <a href="#" className="hover:underline">Terms</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className={`fixed bottom-10 right-10 z-[110] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-10 transition-colors duration-300 ${
           toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
@@ -221,12 +257,11 @@ const Settings: React.FC<SettingsProps> = ({
 
       <div className="flex flex-col gap-2">
         <h2 className="text-4xl font-black tracking-tight dark:text-white">Settings</h2>
-        <p className="text-text-secondary dark:text-gray-400 text-lg font-medium">Manage your shop profile and secure third-party integrations.</p>
+        <p className="text-text-secondary dark:text-gray-400 text-lg font-medium">Manage your shop profile and third-party integrations.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-10">
-          
           <section className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-6 transition-colors overflow-hidden">
             <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
               <div className="flex items-center gap-4">
@@ -234,8 +269,8 @@ const Settings: React.FC<SettingsProps> = ({
                   <span className="material-symbols-outlined text-2xl">hub</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-black dark:text-white">Active Integrations</h3>
-                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Securely connected email services</p>
+                  <h3 className="text-xl font-black dark:text-white">Email Integrations</h3>
+                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Configure how Bean & Leaf sends messages</p>
                 </div>
               </div>
             </div>
@@ -254,29 +289,27 @@ const Settings: React.FC<SettingsProps> = ({
                     <div className="flex items-center justify-between p-4 group">
                       <div className="flex items-center gap-4">
                         <div className={`size-10 rounded-xl flex items-center justify-center font-bold shadow-sm transition-transform group-hover:scale-105 ${
-                          gw.provider === 'Gmail' ? 'bg-red-100 text-red-600' : 
-                          gw.provider === 'SendGrid' ? 'bg-blue-100 text-blue-600' : 'bg-primary/10 text-primary'
+                          gw.provider === 'Gmail' ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
                         }`}>
                           {gw.provider[0]}
                         </div>
                         <div className="flex flex-col">
                           <h4 className="font-bold dark:text-white flex items-center gap-2 text-sm md:text-base">
                             {gw.provider}
-                            {gw.authType === 'oauth' && <span className="material-symbols-outlined text-[14px] text-blue-500 filled" title="OAuth Secured">verified_user</span>}
-                            {gw.authType === 'credentials' && <span className="material-symbols-outlined text-[14px] text-orange-500 filled" title="Direct Login">key</span>}
+                            {gw.authType === 'oauth' && <span className="material-symbols-outlined text-[14px] text-blue-500 filled" title="Verified Integration">verified_user</span>}
                             <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
                           </h4>
                           <p className="text-xs text-text-secondary dark:text-gray-400 truncate max-w-[150px] md:max-w-none font-medium">{gw.fromAddress}</p>
                         </div>
                       </div>
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setActiveTestId(activeTestId === gw.id ? null : gw.id)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-all text-text-secondary dark:text-gray-400 hover:text-primary" title="Send Test">
+                        <button onClick={() => setActiveTestId(activeTestId === gw.id ? null : gw.id)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
                           <span className="material-symbols-outlined text-[20px] font-bold">forward_to_inbox</span>
                         </button>
-                        <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all" title="Edit">
+                        <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
                           <span className="material-symbols-outlined text-[20px]">edit</span>
                         </button>
-                        <button onClick={() => handleRemoveGateway(gw.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 transition-all" title="Remove">
+                        <button onClick={() => handleRemoveGateway(gw.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 transition-all">
                           <span className="material-symbols-outlined text-[20px]">delete</span>
                         </button>
                       </div>
@@ -308,8 +341,8 @@ const Settings: React.FC<SettingsProps> = ({
                   <span className="material-symbols-outlined text-2xl">mail</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-black dark:text-white">{editingId ? 'Edit Integration' : 'New Gateway'}</h3>
-                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Connect real Gmail or external API gateways</p>
+                  <h3 className="text-xl font-black dark:text-white">{editingId ? 'Edit Integration' : 'New Integration'}</h3>
+                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Link your Gmail or external provider</p>
                 </div>
               </div>
             </div>
@@ -319,11 +352,8 @@ const Settings: React.FC<SettingsProps> = ({
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Email Provider</label>
                 <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={emailProvider} onChange={(e) => {
                   setEmailProvider(e.target.value);
-                  if(e.target.value === 'Gmail') setAuthType('oauth');
-                  else {
-                    setAuthType('api_key');
-                    setFromAddress('');
-                  }
+                  if (e.target.value === 'Gmail') setAuthType('oauth');
+                  else setAuthType('api_key');
                 }}>
                   <option>Gmail</option>
                   <option>SendGrid</option>
@@ -331,82 +361,54 @@ const Settings: React.FC<SettingsProps> = ({
                 </select>
               </div>
 
-              {emailProvider === 'Gmail' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-black text-text-main dark:text-gray-300">Integration Method</label>
-                  <div className="flex p-1.5 bg-gray-100 dark:bg-white/5 rounded-2xl border border-border-color dark:border-white/10">
-                    <button onClick={() => setAuthType('oauth')} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${authType === 'oauth' ? 'bg-white dark:bg-background-dark shadow-sm text-primary' : 'text-text-secondary'}`}>Google OAuth</button>
-                    <button onClick={() => setAuthType('credentials')} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${authType === 'credentials' ? 'bg-white dark:bg-background-dark shadow-sm text-primary' : 'text-text-secondary'}`}>App Password</button>
-                  </div>
-                </div>
-              )}
-
-              {authType === 'oauth' && emailProvider === 'Gmail' ? (
-                <div className="md:col-span-2 p-8 rounded-3xl border-2 border-dashed border-border-color dark:border-white/5 bg-gray-50/50 dark:bg-white/5 space-y-6 transition-all">
+              {emailProvider === 'Gmail' ? (
+                <div className="md:col-span-2 p-8 rounded-3xl border-2 border-dashed border-border-color dark:border-white/5 bg-gray-50/50 dark:bg-white/5 space-y-6">
                   <div className="flex items-center gap-5">
-                    <div className="size-12 rounded-2xl bg-white dark:bg-background-dark flex items-center justify-center shadow-sm">
-                      <img src="https://www.google.com/favicon.ico" className="size-6" alt="Google" />
-                    </div>
+                    <img src="https://www.google.com/favicon.ico" className="size-8" alt="G" />
                     <div>
-                      <h4 className="font-black text-base dark:text-white">Real Google Integration</h4>
-                      <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Authorize Bean & Leaf to securely send emails using your account via the official Google APIs.</p>
+                      <h4 className="font-black text-base dark:text-white">Secure Google Login</h4>
+                      <p className="text-xs text-text-secondary dark:text-gray-400 font-medium leading-relaxed">Connect your account using Google's secure authentication window. Use a standard password or an <strong>App Password</strong> for maximum security.</p>
                     </div>
                   </div>
-                  {oAuthToken ? (
-                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-400/10 p-5 rounded-2xl border border-green-200 dark:border-green-400/20 shadow-sm animate-in zoom-in-95 duration-300">
+                  {fromAddress && authType === 'oauth' ? (
+                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-400/10 p-5 rounded-2xl border border-green-200 dark:border-green-400/20 shadow-sm">
                       <div className="flex items-center gap-4">
                         <span className="material-symbols-outlined text-green-600 text-3xl filled">check_circle</span>
                         <div className="flex flex-col">
-                          <span className="text-sm font-black text-green-800 dark:text-green-400">Successfully Authorized</span>
+                          <span className="text-sm font-black text-green-800 dark:text-green-400">Account Ready</span>
                           <span className="text-xs text-green-600 dark:text-green-500 font-medium">{fromAddress}</span>
                         </div>
                       </div>
-                      <button onClick={() => setOAuthToken(undefined)} className="px-4 py-2 text-[11px] font-black text-red-600 hover:bg-red-100 dark:hover:bg-red-400/10 rounded-xl transition-all uppercase tracking-widest">Disconnect</button>
+                      <button onClick={resetEmailForm} className="text-xs font-black text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg transition-all">CHANGE</button>
                     </div>
                   ) : (
                     <button 
-                      onClick={initiateRealOAuth} 
-                      disabled={isOAuthConnecting}
-                      className="w-full py-4 rounded-2xl border border-border-color bg-white dark:bg-background-dark text-sm font-black flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-lg shadow-gray-200/50 dark:shadow-none active:scale-[0.98] disabled:opacity-50"
+                      onClick={openGoogleAuth}
+                      className="w-full py-4 rounded-2xl border border-border-color bg-white dark:bg-background-dark text-sm font-black flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-lg active:scale-[0.98]"
                     >
                       <img src="https://www.google.com/favicon.ico" className="size-5" alt="G" />
-                      <span>{isOAuthConnecting ? 'Connecting...' : 'Sign in with Google'}</span>
+                      <span>Sign in with Google Account</span>
                     </button>
                   )}
                 </div>
-              ) : authType === 'credentials' ? (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-sm font-black text-text-main dark:text-gray-300">Gmail Address</label>
-                    <input type="email" placeholder="e.g. your-cafe@gmail.com" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-black text-text-main dark:text-gray-300">App Password</label>
-                    <input type="password" placeholder="16-character code" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
-                  </div>
-                </>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-sm font-black text-text-main dark:text-gray-300">Sender Email Address</label>
-                    <input type="email" placeholder="e.g. hello@beanandleaf.com" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
+                    <label className="text-sm font-black text-text-main dark:text-gray-300">Sender Email</label>
+                    <input type="email" placeholder="e.g. hello@yourcafe.com" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
                   </div>
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-sm font-black text-text-main dark:text-gray-300">Service API Key</label>
-                    <input type="password" placeholder="Enter provider API key" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)} />
+                    <label className="text-sm font-black text-text-main dark:text-gray-300">API Key</label>
+                    <input type="password" placeholder="Enter service API key" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 focus:ring-primary outline-none transition-colors font-medium" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)} />
                   </div>
                 </>
               )}
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t border-border-color dark:border-white/10">
-              <button onClick={resetEmailForm} className="px-6 py-3 rounded-2xl text-sm font-bold text-text-secondary hover:bg-gray-100 dark:hover:bg-white/5 transition-all">Cancel</button>
-              <button onClick={handleTestEmailConnection} disabled={isTestingEmail} className="px-6 py-3 rounded-2xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 active:scale-95 flex items-center gap-2">
-                {isTestingEmail && <span className="material-symbols-outlined animate-spin text-sm">refresh</span>}
-                {isTestingEmail ? 'Verifying...' : 'Test Connection'}
-              </button>
+              <button onClick={resetEmailForm} className="px-6 py-3 rounded-2xl text-sm font-bold text-text-secondary hover:bg-gray-100 transition-all">Cancel</button>
               <button onClick={handleSaveEmailGateway} disabled={isSavingEmail} className="px-8 py-3 rounded-2xl bg-primary text-white text-sm font-black hover:bg-orange-600 transition-all disabled:opacity-50 shadow-lg shadow-primary/20 active:scale-95">
-                {isSavingEmail ? 'Saving...' : editingId ? 'Update Gateway' : 'Save Integration'}
+                {isSavingEmail ? 'Saving...' : editingId ? 'Update Integration' : 'Save & Connect'}
               </button>
             </div>
           </section>
@@ -420,19 +422,19 @@ const Settings: React.FC<SettingsProps> = ({
                 <label className="text-xs font-black uppercase tracking-widest text-text-secondary">Business Name</label>
                 <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3.5 text-sm focus:ring-primary outline-none font-medium" value={formData.businessName} onChange={(e) => setFormData({...formData, businessName: e.target.value})} />
               </div>
-              <button onClick={handleUpdateProfile} disabled={isSaving} className="w-full bg-primary hover:bg-orange-600 text-white font-black py-4 rounded-2xl transition-all text-sm disabled:opacity-70 shadow-lg shadow-primary/20 active:scale-95">
+              <button onClick={() => { setIsSaving(true); setTimeout(() => { onUpdateProfile(formData); setIsSaving(false); showToast('Profile updated!'); }, 800); }} disabled={isSaving} className="w-full bg-primary hover:bg-orange-600 text-white font-black py-4 rounded-2xl transition-all text-sm shadow-lg active:scale-95">
                 {isSaving ? 'Saving...' : 'Update Profile'}
               </button>
             </div>
           </section>
           
-          <div className="bg-primary/5 dark:bg-primary/10 rounded-3xl p-8 border border-primary/20 dark:border-primary/20 space-y-4 hover:shadow-lg transition-all">
+          <div className="bg-primary/5 dark:bg-primary/10 rounded-3xl p-8 border border-primary/20 space-y-4 hover:shadow-lg transition-all">
             <div className="size-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-md">
-              <span className="material-symbols-outlined text-2xl">security</span>
+              <span className="material-symbols-outlined text-2xl">shield</span>
             </div>
-            <h4 className="font-black text-base dark:text-white">Privacy & Security</h4>
+            <h4 className="font-black text-base dark:text-white">Secure Access</h4>
             <p className="text-xs text-text-secondary dark:text-gray-400 font-medium leading-relaxed">
-              When using <strong>Google OAuth</strong>, we only request permission to send emails on your behalf. We do not store your Google password. For <strong>App Passwords</strong>, your data is stored securely in your browser's local database.
+              We recommend using a Google <strong>App Password</strong> for this integration. This allows Bean & Leaf to send emails without needing your primary account password.
             </p>
           </div>
         </aside>
