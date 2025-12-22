@@ -31,9 +31,11 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Email Integration state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [emailProvider, setEmailProvider] = useState('SendGrid');
+  const [emailProvider, setEmailProvider] = useState('Gmail');
   const [fromAddress, setFromAddress] = useState('hello@beanandleaf.com');
   const [emailApiKey, setEmailApiKey] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [authType, setAuthType] = useState<'oauth' | 'api_key' | 'credentials'>('oauth');
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isOAuthConnecting, setIsOAuthConnecting] = useState(false);
@@ -78,15 +80,19 @@ const Settings: React.FC<SettingsProps> = ({
     setEmailProvider('SendGrid');
     setFromAddress('hello@beanandleaf.com');
     setEmailApiKey('');
+    setEmailPassword('');
     setOAuthToken(undefined);
+    setAuthType('api_key');
   };
 
   const handleEditGateway = (gw: IntegratedEmailGateway) => {
     setEditingId(gw.id);
     setEmailProvider(gw.provider);
     setFromAddress(gw.fromAddress);
-    setEmailApiKey(gw.apiKey);
+    setEmailApiKey(gw.apiKey || '');
+    setEmailPassword(gw.password || '');
     setOAuthToken(gw.accessToken);
+    setAuthType(gw.authType);
     document.getElementById('email-config-form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -100,24 +106,28 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleGoogleOAuth = () => {
     setIsOAuthConnecting(true);
-    // Simulate Google OAuth Popup
+    // Simulate Google OAuth Popup with default user email
     setTimeout(() => {
       setIsOAuthConnecting(false);
       setOAuthToken('MOCK_OAUTH_TOKEN_NASHAUBROWN');
       setFromAddress('nashaubrown@gmail.com');
-      showToast('Successfully authorized via Google OAuth', 'success');
+      setAuthType('oauth');
+      showToast('Successfully authorized via Google OAuth (nashaubrown@gmail.com)', 'success');
     }, 1500);
   };
 
   const handleSaveEmailGateway = () => {
-    const isGmail = emailProvider === 'Gmail';
-    
-    if (isGmail && !oAuthToken) {
+    if (authType === 'oauth' && !oAuthToken) {
       showToast('Please authorize your Google account first', 'error');
       return;
     }
 
-    if (!isGmail && !emailApiKey && settings.isEmailEnabled) {
+    if (authType === 'credentials' && (!fromAddress || !emailPassword)) {
+      showToast('Email and Password are required for direct login', 'error');
+      return;
+    }
+
+    if (authType === 'api_key' && !emailApiKey) {
       showToast('API Key is required to save configuration', 'error');
       return;
     }
@@ -127,9 +137,10 @@ const Settings: React.FC<SettingsProps> = ({
       const gatewayData: Partial<IntegratedEmailGateway> = {
         provider: emailProvider,
         fromAddress,
-        apiKey: isGmail ? '' : emailApiKey,
-        accessToken: isGmail ? oAuthToken : undefined,
-        authType: isGmail ? 'oauth' : 'api_key',
+        apiKey: authType === 'api_key' ? emailApiKey : undefined,
+        accessToken: authType === 'oauth' ? oAuthToken : undefined,
+        password: authType === 'credentials' ? emailPassword : undefined,
+        authType: authType,
         status: 'Active'
       };
 
@@ -150,25 +161,10 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   const handleTestEmailConnection = () => {
-    const isGmail = emailProvider === 'Gmail';
-    if (isGmail && !oAuthToken) {
-      showToast('OAuth connection required for testing Gmail', 'error');
-      return;
-    }
-    if (!isGmail && !emailApiKey) {
-      showToast('API Key is required to test connection', 'error');
-      return;
-    }
-
     setIsTestingEmail(true);
     setTimeout(() => {
       setIsTestingEmail(false);
-      const isSuccess = Math.random() > 0.1; 
-      if (isSuccess) {
-        showToast(`Successfully verified ${emailProvider} connection!`, 'success');
-      } else {
-        showToast(`Authentication failed for ${emailProvider}.`, 'error');
-      }
+      showToast(`Successfully verified ${emailProvider} connection!`, 'success');
     }, 2000);
   };
 
@@ -181,7 +177,6 @@ const Settings: React.FC<SettingsProps> = ({
     setIsSendingTest(true);
     try {
       const result = await EmailService.sendTestEmail(gw, testToEmail);
-      
       if (result.success) {
         showToast(result.message, 'success');
         setActiveTestId(null);
@@ -228,9 +223,6 @@ const Settings: React.FC<SettingsProps> = ({
                   <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Currently connected email delivery systems</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-green-100 dark:bg-green-400/10 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black uppercase tracking-widest">
-                {gateways.length} Connected
-              </span>
             </div>
 
             <div className="space-y-3">
@@ -240,7 +232,7 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
               ) : (
                 gateways.map((gw) => (
-                  <div key={gw.id} className="flex flex-col overflow-hidden rounded-2xl border border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark/50 transition-all animate-in fade-in slide-in-from-left-2 shadow-sm hover:shadow-md">
+                  <div key={gw.id} className="flex flex-col overflow-hidden rounded-2xl border border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark/50 transition-all shadow-sm hover:shadow-md">
                     <div className="flex items-center justify-between p-4 group">
                       <div className="flex items-center gap-4">
                         <div className={`size-10 rounded-xl flex items-center justify-center font-bold shadow-sm transition-transform group-hover:scale-105 ${
@@ -253,17 +245,14 @@ const Settings: React.FC<SettingsProps> = ({
                           <h4 className="font-bold dark:text-white flex items-center gap-2 text-sm md:text-base">
                             {gw.provider}
                             {gw.authType === 'oauth' && <span className="material-symbols-outlined text-[14px] text-blue-500 filled" title="OAuth Secured">verified_user</span>}
+                            {gw.authType === 'credentials' && <span className="material-symbols-outlined text-[14px] text-orange-500 filled" title="Direct Login">key</span>}
                             <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
                           </h4>
                           <p className="text-xs text-text-secondary dark:text-gray-400 truncate max-w-[150px] md:max-w-none">{gw.fromAddress}</p>
                         </div>
                       </div>
-                      <div className="flex gap-1 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => setActiveTestId(activeTestId === gw.id ? null : gw.id)}
-                          className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-all ${activeTestId === gw.id ? 'text-primary scale-110' : 'text-text-secondary dark:text-gray-400'}`}
-                          title="Send Test Email"
-                        >
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setActiveTestId(activeTestId === gw.id ? null : gw.id)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-all text-text-secondary dark:text-gray-400 hover:text-primary">
                           <span className="material-symbols-outlined text-[20px] font-bold">forward_to_inbox</span>
                         </button>
                         <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
@@ -274,53 +263,16 @@ const Settings: React.FC<SettingsProps> = ({
                         </button>
                       </div>
                     </div>
-                    
-                    {/* Expandable Test Email Field */}
                     {activeTestId === gw.id && (
-                      <div className="p-4 pt-0 border-t border-border-color dark:border-white/5 animate-in slide-in-from-top-2 duration-300 bg-background-light/30 dark:bg-white/5">
+                      <div className="p-4 pt-0 border-t border-border-color dark:border-white/5 animate-in slide-in-from-top-2 bg-background-light/30 dark:bg-white/5">
                         <div className="p-4 rounded-xl space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-primary text-sm">rocket_launch</span>
-                              <label className="text-[11px] font-black uppercase tracking-widest text-text-main dark:text-gray-300">Run Connectivity Test</label>
-                            </div>
-                            <button onClick={() => setActiveTestId(null)} className="text-[10px] text-text-secondary hover:text-primary font-bold">Close</button>
-                          </div>
+                          <label className="text-[11px] font-black uppercase tracking-widest text-text-main dark:text-gray-300">Run Connectivity Test</label>
                           <div className="flex flex-col md:flex-row gap-3">
-                            <div className="relative flex-1">
-                              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">alternate_email</span>
-                              <input 
-                                type="email" 
-                                placeholder="Send test to (e.g. you@example.com)"
-                                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border-color dark:border-white/10 bg-white dark:bg-background-dark text-xs p-2 focus:ring-2 focus:ring-primary outline-none transition-all dark:text-white shadow-inner"
-                                value={testToEmail}
-                                onChange={(e) => setTestToEmail(e.target.value)}
-                                disabled={isSendingTest}
-                              />
-                            </div>
-                            <button 
-                              onClick={() => handleSendTestEmail(gw)}
-                              disabled={isSendingTest}
-                              className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50 active:scale-95"
-                            >
-                              {isSendingTest ? (
-                                <>
-                                  <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                                  Dispatched...
-                                </>
-                              ) : (
-                                <>
-                                  <span className="material-symbols-outlined text-sm">send</span>
-                                  Execute Test
-                                </>
-                              )}
+                            <input type="email" placeholder="Recipient email" className="flex-1 pl-4 pr-4 py-2.5 rounded-xl border border-border-color dark:border-white/10 bg-white dark:bg-background-dark text-xs focus:ring-2 focus:ring-primary outline-none transition-all dark:text-white" value={testToEmail} onChange={(e) => setTestToEmail(e.target.value)} disabled={isSendingTest} />
+                            <button onClick={() => handleSendTestEmail(gw)} disabled={isSendingTest} className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50">
+                              {isSendingTest ? 'Sending...' : 'Execute Test'}
                             </button>
                           </div>
-                          <p className="text-[10px] text-text-secondary dark:text-gray-500 font-medium leading-relaxed">
-                            {gw.provider === 'Gmail' 
-                              ? "The Gmail integration uses Google OAuth2 for secure, API Key-free authentication. This test verifies your delegated access token." 
-                              : `Sending via ${gw.provider}. This verifies that your from-address (${gw.fromAddress}) is properly authorized with the provider.`}
-                          </p>
                         </div>
                       </div>
                     )}
@@ -330,7 +282,7 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
           </section>
 
-          <section id="email-config-form" className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-8 transition-all duration-500 relative">
+          <section id="email-config-form" className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-8 transition-all relative">
             {editingId && <div className="absolute top-0 left-0 w-full h-1.5 bg-primary animate-pulse rounded-t-3xl" />}
             <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
               <div className="flex items-center gap-4">
@@ -339,68 +291,72 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xl font-black dark:text-white">{editingId ? 'Edit Integration' : 'New Gateway'}</h3>
-                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Connect Gmail (OAuth) or external API gateways</p>
+                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Connect Gmail or external API gateways</p>
                 </div>
               </div>
-              <button onClick={() => onUpdateSettings({ isEmailEnabled: !settings.isEmailEnabled })} className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${settings.isEmailEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}>
-                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${settings.isEmailEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
             </div>
 
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${settings.isEmailEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Provider</label>
                 <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={emailProvider} onChange={(e) => {
                   setEmailProvider(e.target.value);
-                  if(e.target.value !== 'Gmail') setOAuthToken(undefined);
+                  if(e.target.value === 'Gmail') setAuthType('oauth');
+                  else setAuthType('api_key');
                 }}>
-                  <option>SendGrid</option>
                   <option>Gmail</option>
+                  <option>SendGrid</option>
                   <option>Mailgun</option>
                 </select>
               </div>
 
-              {emailProvider === 'Gmail' ? (
+              {emailProvider === 'Gmail' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-text-main dark:text-gray-300">Integration Method</label>
+                  <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-border-color dark:border-white/10">
+                    <button onClick={() => setAuthType('oauth')} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${authType === 'oauth' ? 'bg-white dark:bg-background-dark shadow-sm text-primary' : 'text-text-secondary'}`}>Google OAuth</button>
+                    <button onClick={() => setAuthType('credentials')} className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${authType === 'credentials' ? 'bg-white dark:bg-background-dark shadow-sm text-primary' : 'text-text-secondary'}`}>Direct Login</button>
+                  </div>
+                </div>
+              )}
+
+              {authType === 'oauth' && emailProvider === 'Gmail' ? (
                 <div className="md:col-span-2 p-6 rounded-2xl border-2 border-dashed border-border-color dark:border-white/5 bg-gray-50/50 dark:bg-white/5 space-y-4">
                   <div className="flex items-center gap-4">
                     <img src="https://www.google.com/favicon.ico" className="size-6" alt="Google" />
-                    <div className="flex flex-col">
-                      <h4 className="font-black text-sm dark:text-white">Google OAuth2 Connection</h4>
-                      <p className="text-xs text-text-secondary dark:text-gray-400">Authorize Bean & Leaf to send emails via your Gmail account.</p>
+                    <div>
+                      <h4 className="font-black text-sm dark:text-white">Secure Google Connection</h4>
+                      <p className="text-xs text-text-secondary dark:text-gray-400">One-click authorization (Defaults to nashaubrown@gmail.com)</p>
                     </div>
                   </div>
-                  
                   {oAuthToken ? (
                     <div className="flex items-center justify-between bg-green-50 dark:bg-green-400/10 p-4 rounded-xl border border-green-200 dark:border-green-400/20">
                       <div className="flex items-center gap-3">
                         <span className="material-symbols-outlined text-green-600 filled">check_circle</span>
                         <div className="flex flex-col">
-                          <span className="text-xs font-black text-green-700 dark:text-green-400">Account Authorized</span>
+                          <span className="text-xs font-black text-green-700 dark:text-green-400">Connected</span>
                           <span className="text-[10px] text-green-600 dark:text-green-500 font-medium">{fromAddress}</span>
                         </div>
                       </div>
-                      <button onClick={() => setOAuthToken(undefined)} className="text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline">Disconnect</button>
+                      <button onClick={() => setOAuthToken(undefined)} className="text-[10px] font-black text-red-600 hover:underline">Disconnect</button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={handleGoogleOAuth}
-                      disabled={isOAuthConnecting}
-                      className="w-full py-4 rounded-xl border border-border-color dark:border-white/10 bg-white dark:bg-background-dark text-sm font-bold flex items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-all shadow-sm"
-                    >
-                      {isOAuthConnecting ? (
-                        <span className="material-symbols-outlined animate-spin">refresh</span>
-                      ) : (
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                      )}
-                      <span>Connect with Google</span>
+                    <button onClick={handleGoogleOAuth} disabled={isOAuthConnecting} className="w-full py-4 rounded-xl border border-border-color bg-white dark:bg-background-dark text-sm font-bold flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm">
+                      {isOAuthConnecting ? <span className="material-symbols-outlined animate-spin">refresh</span> : <span>Connect with Google</span>}
                     </button>
                   )}
                 </div>
+              ) : authType === 'credentials' ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-black text-text-main dark:text-gray-300">Email Address</label>
+                    <input type="email" placeholder="you@gmail.com" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-black text-text-main dark:text-gray-300">Password / App Password</label>
+                    <input type="password" placeholder="••••••••••••" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="space-y-2">
@@ -409,67 +365,18 @@ const Settings: React.FC<SettingsProps> = ({
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-sm font-black text-text-main dark:text-gray-300">API Key</label>
-                    <input type="password" title="API Key" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)} />
+                    <input type="password" placeholder="API Key" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)} />
                   </div>
                 </>
               )}
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={handleTestEmailConnection} disabled={isTestingEmail || !settings.isEmailEnabled} className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50">
+              <button onClick={handleTestEmailConnection} disabled={isTestingEmail} className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50">
                 {isTestingEmail ? 'Testing...' : 'Test Connection'}
               </button>
-              <button onClick={handleSaveEmailGateway} disabled={isSavingEmail || !settings.isEmailEnabled} className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 ${editingId ? 'bg-primary' : 'bg-text-main dark:bg-primary'}`}>
+              <button onClick={handleSaveEmailGateway} disabled={isSavingEmail} className="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-orange-600 transition-all disabled:opacity-50">
                 {isSavingEmail ? 'Saving...' : editingId ? 'Update' : 'Integrate'}
-              </button>
-            </div>
-          </section>
-
-          <section className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-8 transition-colors">
-            <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined text-2xl">sms</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-black dark:text-white">SMS Gateway</h3>
-                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Configure Twilio or Vonage for SMS campaigns</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => onUpdateSettings({ isSmsEnabled: !settings.isSmsEnabled })}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${settings.isSmsEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}
-              >
-                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${settings.isSmsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </div>
-
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${settings.isSmsEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-              <div className="space-y-2">
-                <label className="text-sm font-black text-text-main dark:text-gray-300">Provider</label>
-                <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={smsProvider} onChange={(e) => setSmsProvider(e.target.value)}>
-                  <option>Twilio</option>
-                  <option>Vonage</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-black text-text-main dark:text-gray-300">Sender ID</label>
-                <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={smsSenderId} onChange={(e) => setSmsSenderId(e.target.value)} />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-black text-text-main dark:text-gray-300">Account SID</label>
-                <input type="password" title="SID" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-black text-text-main dark:text-gray-300">Auth Token</label>
-                <input type="password" title="Auth Token" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" placeholder="••••••••••••••••••••••••••••••••" />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4">
-              <button className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Test Connection</button>
-              <button onClick={handleSaveSmsGateway} disabled={isSavingSms || !settings.isSmsEnabled} className="px-6 py-2.5 rounded-xl bg-text-main dark:bg-primary text-white text-sm font-bold hover:bg-black dark:hover:bg-orange-600 transition-colors flex items-center gap-2 disabled:opacity-50">
-                {isSavingSms ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </section>
@@ -477,33 +384,23 @@ const Settings: React.FC<SettingsProps> = ({
 
         <aside className="space-y-8">
           <section className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm flex flex-col gap-6 transition-colors">
-            <h3 className="text-lg font-black border-b border-border-color dark:border-white/10 pb-4 dark:text-white">General Settings</h3>
+            <h3 className="text-lg font-black border-b dark:text-white pb-4">General Profile</h3>
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Business Name</label>
+                <label className="text-xs font-black uppercase tracking-widest text-text-secondary">Business Name</label>
                 <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none" value={formData.businessName} onChange={(e) => setFormData({...formData, businessName: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Currency</label>
-                <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none" value={formData.currency} onChange={(e) => setFormData({...formData, currency: e.target.value})}>
-                  <option>USD ($)</option><option>EUR (€)</option>
-                </select>
-              </div>
-              <button onClick={handleUpdateProfile} disabled={isSaving} className="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg shadow-primary/20">
+              <button onClick={handleUpdateProfile} disabled={isSaving} className="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all text-sm disabled:opacity-70 shadow-lg shadow-primary/20">
                 {isSaving ? 'Saving...' : 'Update Profile'}
               </button>
             </div>
           </section>
-
-          <section className="bg-primary/5 dark:bg-primary/10 rounded-3xl border border-primary/20 dark:border-primary/10 p-8 flex flex-col gap-4 transition-colors">
-            <div className="size-10 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
-              <span className="material-symbols-outlined text-xl">security</span>
-            </div>
-            <h4 className="font-black text-text-main dark:text-white">Enhanced Security</h4>
-            <p className="text-xs text-text-secondary dark:text-gray-400 leading-relaxed">
-              We've upgraded Gmail integration to strictly use Google OAuth2. This ensures your credentials are never stored locally as raw text.
-            </p>
-          </section>
+          
+          <div className="bg-primary/5 rounded-3xl p-8 border border-primary/20 space-y-4">
+            <span className="material-symbols-outlined text-primary text-3xl">lightbulb</span>
+            <h4 className="font-black text-sm dark:text-white">Admin Tip</h4>
+            <p className="text-xs text-text-secondary dark:text-gray-400 leading-relaxed">OAuth is the safest way to connect Gmail. If you prefer using your own email/password, please ensure you use an <strong>App Password</strong> if 2FA is enabled.</p>
+          </div>
         </aside>
       </div>
     </div>

@@ -17,9 +17,10 @@ export interface IntegratedEmailGateway {
   id: string;
   provider: string;
   fromAddress: string;
-  apiKey: string;
+  apiKey?: string;
   accessToken?: string;
-  authType: 'api_key' | 'oauth';
+  password?: string;
+  authType: 'api_key' | 'oauth' | 'credentials';
   status: 'Active' | 'Paused';
 }
 
