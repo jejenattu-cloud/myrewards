@@ -24,6 +24,13 @@ export interface IntegratedEmailGateway {
   status: 'Active' | 'Paused';
 }
 
+export interface IntegratedSmsGateway {
+  id: string;
+  provider: 'Textflow' | 'Twilio' | 'Generic';
+  apiKey: string;
+  status: 'Active' | 'Paused';
+}
+
 export interface Customer {
   id: string;
   name: string;

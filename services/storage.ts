@@ -1,12 +1,13 @@
 
 import { MOCK_CUSTOMERS, MOCK_CAMPAIGNS, MOCK_REWARDS } from '../constants';
-import { Profile, IntegratedEmailGateway, Customer, Campaign, Reward } from '../types';
+import { Profile, IntegratedEmailGateway, IntegratedSmsGateway, Customer, Campaign, Reward } from '../types';
 
 const STORAGE_KEY = 'bean_and_leaf_db';
 
 interface AppDatabase {
   profile: Profile;
   gateways: IntegratedEmailGateway[];
+  smsGateways: IntegratedSmsGateway[];
   customers: Customer[];
   campaigns: Campaign[];
   rewards: Reward[];
@@ -23,7 +24,8 @@ const DEFAULT_DB: AppDatabase = {
     currency: 'USD ($)',
     timezone: 'Pacific Standard Time (PST)'
   },
-  gateways: [], // Start with no pre-configured gateways
+  gateways: [],
+  smsGateways: [],
   customers: MOCK_CUSTOMERS,
   campaigns: MOCK_CAMPAIGNS,
   rewards: MOCK_REWARDS,
@@ -43,6 +45,8 @@ export const StorageService = {
     }
     try {
       const parsed = JSON.parse(data);
+      // Ensure missing keys are initialized if they don't exist in older storage versions
+      if (!parsed.smsGateways) parsed.smsGateways = [];
       return parsed;
     } catch (e) {
       console.error("Database corruption detected. Resetting to defaults.");

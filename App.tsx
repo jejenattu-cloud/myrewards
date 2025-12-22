@@ -6,7 +6,7 @@ import Customers from './views/Customers';
 import Campaigns from './views/Campaigns';
 import Rewards from './views/Rewards';
 import Settings from './views/Settings';
-import { View, Profile, IntegratedEmailGateway, Customer, Campaign, Reward } from './types';
+import { View, Profile, IntegratedEmailGateway, IntegratedSmsGateway, Customer, Campaign, Reward } from './types';
 import { StorageService } from './services/storage';
 
 const App: React.FC = () => {
@@ -71,6 +71,8 @@ const App: React.FC = () => {
             onUpdateProfile={handleUpdateProfile}
             gateways={db.gateways}
             onUpdateGateways={(gateways) => updateDb({ gateways })}
+            smsGateways={db.smsGateways || []}
+            onUpdateSmsGateways={(smsGateways) => updateDb({ smsGateways })}
             settings={db.settings}
             onUpdateSettings={(settings) => updateDb({ settings: { ...db.settings, ...settings } })}
           />
