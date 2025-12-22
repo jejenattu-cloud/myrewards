@@ -13,6 +13,14 @@ export interface Profile {
   timezone: string;
 }
 
+export interface IntegratedEmailGateway {
+  id: string;
+  provider: string;
+  fromAddress: string;
+  apiKey: string;
+  status: 'Active' | 'Paused';
+}
+
 export interface Customer {
   id: string;
   name: string;

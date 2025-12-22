@@ -23,14 +23,14 @@ const Campaigns: React.FC = () => {
             <span className="material-symbols-outlined text-lg transition-transform group-hover:-translate-x-1">arrow_back</span>
             <span>Back to Dashboard</span>
           </button>
-          <h1 className="text-4xl font-black tracking-tight">Create New Promotion</h1>
-          <p className="text-text-secondary text-lg font-medium">Configure your discount campaign details and target audience.</p>
+          <h1 className="text-4xl font-black tracking-tight dark:text-white">Create New Promotion</h1>
+          <p className="text-text-secondary dark:text-gray-400 text-lg font-medium">Configure your discount campaign details and target audience.</p>
         </div>
 
-        <section className="rounded-3xl bg-white p-8 shadow-sm border border-border-color space-y-8">
-          <div className="flex items-center gap-4 border-b border-border-color pb-4">
+        <section className="rounded-3xl bg-white dark:bg-[#2a2018] p-8 shadow-sm border border-border-color dark:border-white/5 space-y-8 transition-colors">
+          <div className="flex items-center gap-4 border-b border-border-color dark:border-white/10 pb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-black">1</div>
-            <h2 className="text-2xl font-black">The Offer</h2>
+            <h2 className="text-2xl font-black dark:text-white">The Offer</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -43,11 +43,11 @@ const Campaigns: React.FC = () => {
                   checked={offerType === type}
                   onChange={() => setOfferType(type)}
                 />
-                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-border-color p-6 text-center transition-all peer-checked:border-primary peer-checked:bg-primary/5 group-hover:border-primary/50">
-                  <span className={`material-symbols-outlined text-4xl mb-3 ${offerType === type ? 'text-primary' : 'text-text-secondary'}`}>
+                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-border-color dark:border-white/10 p-6 text-center transition-all peer-checked:border-primary peer-checked:bg-primary/5 dark:peer-checked:bg-primary/20 group-hover:border-primary/50">
+                  <span className={`material-symbols-outlined text-4xl mb-3 ${offerType === type ? 'text-primary' : 'text-text-secondary dark:text-gray-500'}`}>
                     {type === 'Percentage Off' ? 'percent' : type === 'Fixed Amount' ? 'attach_money' : 'coffee'}
                   </span>
-                  <span className="text-sm font-bold">{type}</span>
+                  <span className="text-sm font-bold dark:text-gray-200">{type}</span>
                 </div>
                 {offerType === type && (
                   <div className="absolute top-3 right-3 text-primary">
@@ -60,24 +60,24 @@ const Campaigns: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold block">Discount Value</label>
+              <label className="text-sm font-bold block dark:text-gray-300">Discount Value</label>
               <div className="relative">
-                <input type="text" className="w-full rounded-xl border-border-color p-4 bg-background-light focus:ring-primary focus:border-primary font-bold" placeholder="e.g. 20" />
+                <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 p-4 bg-background-light dark:bg-background-dark dark:text-white focus:ring-primary focus:border-primary font-bold outline-none transition-colors" placeholder="e.g. 20" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold block">Item Name (Optional)</label>
-              <input type="text" className="w-full rounded-xl border-border-color p-4 bg-background-light focus:ring-primary focus:border-primary" placeholder="e.g. All Lattes" />
+              <label className="text-sm font-bold block dark:text-gray-300">Item Name (Optional)</label>
+              <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 p-4 bg-background-light dark:bg-background-dark dark:text-white focus:ring-primary focus:border-primary outline-none transition-colors" placeholder="e.g. All Lattes" />
             </div>
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-8 shadow-sm border border-border-color space-y-8">
-          <div className="flex items-center justify-between border-b border-border-color pb-4">
+        <section className="rounded-3xl bg-white dark:bg-[#2a2018] p-8 shadow-sm border border-border-color dark:border-white/5 space-y-8 transition-colors">
+          <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
             <div className="flex items-center gap-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-black">2</div>
-              <h2 className="text-2xl font-black">The Message</h2>
+              <h2 className="text-2xl font-black dark:text-white">The Message</h2>
             </div>
             <button 
               onClick={handleAiGenerate}
@@ -91,13 +91,13 @@ const Campaigns: React.FC = () => {
 
           <div className="space-y-4">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-bold">What is this campaign about?</label>
+              <label className="text-sm font-bold dark:text-gray-300">What is this campaign about?</label>
               <div className="relative">
                 <input 
                   type="text" 
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  className="w-full rounded-xl border-border-color p-4 bg-background-light focus:ring-primary focus:border-primary pr-24"
+                  className="w-full rounded-xl border-border-color dark:border-white/10 p-4 bg-background-light dark:bg-background-dark dark:text-white focus:ring-primary focus:border-primary pr-24 outline-none transition-colors"
                   placeholder="Describe your goals for the AI..."
                 />
                 <button 
@@ -110,13 +110,13 @@ const Campaigns: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold block">Final Message Content</label>
+              <label className="text-sm font-bold block dark:text-gray-300">Final Message Content</label>
               <textarea 
-                className="h-32 w-full resize-none rounded-xl border-border-color bg-background-light p-4 text-base leading-relaxed focus:ring-primary focus:border-primary"
+                className="h-32 w-full resize-none rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-4 text-base leading-relaxed focus:ring-primary focus:border-primary outline-none transition-colors"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
-              <div className="flex justify-between text-xs text-text-secondary">
+              <div className="flex justify-between text-xs text-text-secondary dark:text-gray-500">
                 <span>1 segment, {message.length} characters</span>
                 <span>Max 160 characters</span>
               </div>
@@ -124,8 +124,8 @@ const Campaigns: React.FC = () => {
           </div>
         </section>
 
-        <div className="flex items-center justify-end gap-4 rounded-3xl bg-white/80 p-6 shadow-xl backdrop-blur-md border border-border-color sticky bottom-6 z-10 animate-in fade-in zoom-in duration-1000">
-          <button className="rounded-xl px-8 py-3 text-sm font-bold text-text-main hover:bg-gray-100 transition-colors">Save Draft</button>
+        <div className="flex items-center justify-end gap-4 rounded-3xl bg-white/80 dark:bg-[#2a2018]/80 p-6 shadow-xl backdrop-blur-md border border-border-color dark:border-white/5 sticky bottom-6 z-10 animate-in fade-in zoom-in duration-1000 transition-colors">
+          <button className="rounded-xl px-8 py-3 text-sm font-bold text-text-main dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">Save Draft</button>
           <button className="flex items-center gap-3 rounded-xl bg-primary px-10 py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 hover:bg-orange-600 transition-all hover:scale-105">
             <span className="material-symbols-outlined text-xl">rocket_launch</span>
             Launch Promotion
@@ -136,11 +136,11 @@ const Campaigns: React.FC = () => {
       <div className="hidden lg:flex w-[400px] flex-col shrink-0">
         <div className="sticky top-28 flex flex-col gap-6">
           <div className="px-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-text-secondary">Live Preview</h3>
-            <p className="text-xs text-text-secondary mt-1">Real-time visualization of your campaign</p>
+            <h3 className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Live Preview</h3>
+            <p className="text-xs text-text-secondary dark:text-gray-600 mt-1">Real-time visualization of your campaign</p>
           </div>
 
-          <div className="relative mx-auto h-[740px] w-[360px] rounded-[4rem] border-[12px] border-gray-900 bg-gray-900 shadow-2xl overflow-hidden group">
+          <div className="relative mx-auto h-[740px] w-[360px] rounded-[4rem] border-[12px] border-gray-900 dark:border-black bg-gray-900 shadow-2xl overflow-hidden group">
             <div className="absolute top-0 w-full px-10 pt-4 flex justify-between items-center text-[11px] font-bold text-black z-20 bg-white/80 backdrop-blur-sm h-12">
               <span>9:41</span>
               <div className="flex gap-1.5 items-center">
