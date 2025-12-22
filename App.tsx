@@ -48,7 +48,7 @@ const App: React.FC = () => {
     setDb(newDb);
     // Optimistic background save
     StorageService.save(newDb).catch(err => {
-      console.error("Critical: Failed to sync with Google Cloud", err);
+      console.error("Critical: Failed to sync with Cloud SQL", err);
     });
   };
 
@@ -77,7 +77,7 @@ const App: React.FC = () => {
            <div className="w-48 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
               <div className="h-full bg-primary animate-[loading-progress_2s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
            </div>
-           <p className="text-xs font-bold text-text-secondary uppercase tracking-widest animate-pulse">Connecting to Google Cloud...</p>
+           <p className="text-xs font-bold text-text-secondary uppercase tracking-widest animate-pulse">Initializing Cloud SQL Bridge...</p>
         </div>
         <style>{`
           @keyframes loading-progress {
@@ -157,7 +157,7 @@ const App: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
             </div>
-            <span>Cloud Sync Active</span>
+            <span>Cloud SQL Sync Active</span>
           </div>
           
           <button 

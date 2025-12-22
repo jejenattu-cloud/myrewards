@@ -1,25 +1,6 @@
 
 import { MOCK_CUSTOMERS, MOCK_CAMPAIGNS, MOCK_REWARDS } from '../constants';
 import { Profile, IntegratedEmailGateway, IntegratedSmsGateway, Customer, Campaign, Reward } from '../types';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-
-// Configuration updated with your Google Cloud Project details
-const firebaseConfig = {
-  apiKey: process.env.API_KEY, // Uses the API_KEY from environment
-  authDomain: "gen-lang-client-0216687781.firebaseapp.com",
-  projectId: "gen-lang-client-0216687781",
-  storageBucket: "gen-lang-client-0216687781.appspot.com",
-  messagingSenderId: "959648036352",
-  appId: "1:959648036352:web:7f6a7b8c9d0e1f2g3h4i5j"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Document reference for our singleton application state
-const APP_DATA_DOC = doc(db, 'settings', 'main_config');
 
 export interface AppDatabase {
   profile: Profile;
@@ -53,56 +34,72 @@ export const DEFAULT_DB: AppDatabase = {
   }
 };
 
+// Use proxy or direct URL for the Python backend
+const API_BASE = window.location.hostname === 'localhost' ? "http://localhost:8080/api/storage" : "/api/storage";
+
 export const StorageService = {
   /**
-   * Initializes the app state by fetching from Google Cloud Firestore.
-   * If the document doesn't exist, it seeds it with defaults.
+   * Initializes the app state by fetching from our Python Backend (Cloud SQL Bridge).
    */
   async init(): Promise<AppDatabase> {
     try {
-      const docSnap = await getDoc(APP_DATA_DOC);
+      const response = await fetch(API_BASE);
       
-      if (docSnap.exists()) {
-        const data = docSnap.data() as AppDatabase;
-        // Migration check for new keys
-        if (!data.smsGateways) data.smsGateways = [];
-        return data;
+      if (!response.ok) {
+        throw new Error(`Cloud SQL API responded with ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && typeof data === 'object') {
+        // Hydrate defaults for any missing keys (future proofing)
+        return {
+          ...DEFAULT_DB,
+          ...data,
+          smsGateways: data.smsGateways || [],
+          gateways: data.gateways || [],
+          customers: data.customers || [],
+          campaigns: data.campaigns || [],
+          rewards: data.rewards || []
+        };
       } else {
-        console.log("No cloud database found. Initializing with defaults...");
-        await setDoc(APP_DATA_DOC, DEFAULT_DB);
+        console.log("No remote config found in Cloud SQL. Seeding defaults...");
+        await this.save(DEFAULT_DB);
         return DEFAULT_DB;
       }
     } catch (e) {
-      console.error("Cloud Database connection failed. Falling back to default state.", e);
+      console.warn("Cloud SQL connection failed. Falling back to default mock data.", e);
       return DEFAULT_DB;
     }
   },
 
   /**
-   * Persists the entire database state to Google Cloud.
+   * Persists the entire database state to Google Cloud SQL via Python API.
    */
   async save(appData: AppDatabase): Promise<void> {
     try {
-      await setDoc(APP_DATA_DOC, appData);
-      console.log("[StorageService] Cloud Sync Successful");
+      const response = await fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appData)
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to save to Cloud SQL");
+      }
+      console.log("[StorageService] Cloud SQL Transaction Successful");
     } catch (e) {
-      console.error("[StorageService] Cloud Sync Failed", e);
+      console.error("[StorageService] Cloud SQL Transaction Failed", e);
       throw e;
     }
   },
 
   /**
-   * Updates a specific top-level key in the cloud database.
+   * Utility for partial updates.
    */
   async updateKey<K extends keyof AppDatabase>(key: K, value: AppDatabase[K]): Promise<void> {
-    try {
-      await updateDoc(APP_DATA_DOC, {
-        [key]: value
-      });
-      console.log(`[StorageService] Key '${key}' updated in cloud.`);
-    } catch (e) {
-      console.error(`[StorageService] Failed to update key '${key}'`, e);
-      throw e;
-    }
+    const currentData = await this.init();
+    const updatedData = { ...currentData, [key]: value };
+    await this.save(updatedData);
   }
 };
