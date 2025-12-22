@@ -2,10 +2,11 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatsCard from '../components/StatsCard';
-import { MOCK_CAMPAIGNS } from '../constants';
+import { Campaign } from '../types';
 
 interface DashboardProps {
   businessName: string;
+  campaigns: Campaign[];
 }
 
 const chartData = [
@@ -18,7 +19,7 @@ const chartData = [
   { name: 'Sun', interactions: 1240 },
 ];
 
-const Dashboard: React.FC<DashboardProps> = ({ businessName }) => {
+const Dashboard: React.FC<DashboardProps> = ({ businessName, campaigns }) => {
   return (
     <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -33,7 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard label="Active Promos" value="3" change="+1 this week" icon="local_offer" />
+        <StatsCard label="Active Promos" value={campaigns.filter(c => c.status === 'Active').length} change="+1 this week" icon="local_offer" />
         <StatsCard label="SMS Sent Today" value="145" change="+12%" icon="sms" />
         <StatsCard label="Open Rate" value="42%" change="+5%" icon="mark_email_read" />
         <StatsCard label="Revenue Attributed" value="$2,450" change="+8%" icon="attach_money" />
@@ -153,7 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-color dark:divide-white/5">
-              {MOCK_CAMPAIGNS.map((camp) => (
+              {campaigns.slice(0, 5).map((camp) => (
                 <tr key={camp.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                   <td className="p-6">
                     <div className="flex items-center gap-4">
@@ -183,7 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName }) => {
                   <td className="p-6">
                     <div className="flex flex-col gap-2 w-32">
                       <div className="flex justify-between text-xs">
-                        <span className="text-text-secondary dark:text-gray-500 font-medium">Open Rate</span>
+                        <span className="text-text-secondary dark:text-gray-500 font-medium">Engagement</span>
                         <span className="font-bold dark:text-gray-300">{camp.engagementRate}%</span>
                       </div>
                       <div className="h-2 w-full bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">

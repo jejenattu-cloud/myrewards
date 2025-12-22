@@ -6,50 +6,75 @@ import Customers from './views/Customers';
 import Campaigns from './views/Campaigns';
 import Rewards from './views/Rewards';
 import Settings from './views/Settings';
-import { View, Profile } from './types';
+import { View, Profile, IntegratedEmailGateway, Customer, Campaign, Reward } from './types';
+import { StorageService } from './services/storage';
 
 const App: React.FC = () => {
+  const [db, setDb] = useState(() => StorageService.init());
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
-  });
-  
-  // Global Profile State
-  const [profile, setProfile] = useState<Profile>({
-    businessName: 'Bean & Leaf',
-    currency: 'USD ($)',
-    timezone: 'Pacific Standard Time (PST)'
-  });
 
   // Sync dark mode class
   useEffect(() => {
-    if (isDarkMode) {
+    if (db.settings.isDarkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
     }
-  }, [isDarkMode]);
+    document.title = `${db.profile.businessName} Admin`;
+  }, [db.settings.isDarkMode, db.profile.businessName]);
 
-  // Sync document title with business name
-  useEffect(() => {
-    document.title = `${profile.businessName} Admin`;
-  }, [profile.businessName]);
-
-  const handleUpdateProfile = (updates: Partial<Profile>) => {
-    setProfile(prev => ({ ...prev, ...updates }));
+  const updateDb = (updates: Partial<typeof db>) => {
+    const newDb = { ...db, ...updates };
+    setDb(newDb);
+    StorageService.save(newDb);
   };
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+  const handleUpdateProfile = (updates: Partial<Profile>) => {
+    updateDb({ profile: { ...db.profile, ...updates } });
+  };
+
+  const toggleDarkMode = () => {
+    updateDb({ 
+      settings: { ...db.settings, isDarkMode: !db.settings.isDarkMode } 
+    });
+  };
 
   const renderView = () => {
     switch (currentView) {
-      case View.DASHBOARD: return <Dashboard businessName={profile.businessName} />;
-      case View.CUSTOMERS: return <Customers />;
-      case View.CAMPAIGNS: return <Campaigns />;
-      case View.REWARDS: return <Rewards />;
-      case View.SETTINGS: return <Settings profile={profile} onUpdateProfile={handleUpdateProfile} />;
+      case View.DASHBOARD: 
+        return <Dashboard businessName={db.profile.businessName} campaigns={db.campaigns} />;
+      case View.CUSTOMERS: 
+        return (
+          <Customers 
+            customers={db.customers} 
+            onUpdateCustomers={(customers) => updateDb({ customers })} 
+          />
+        );
+      case View.CAMPAIGNS: 
+        return (
+          <Campaigns 
+            campaigns={db.campaigns} 
+            onSaveCampaign={(newCamp) => updateDb({ campaigns: [newCamp, ...db.campaigns] })} 
+          />
+        );
+      case View.REWARDS: 
+        return (
+          <Rewards 
+            rewards={db.rewards} 
+            onUpdateRewards={(rewards) => updateDb({ rewards })} 
+          />
+        );
+      case View.SETTINGS: 
+        return (
+          <Settings 
+            profile={db.profile} 
+            onUpdateProfile={handleUpdateProfile}
+            gateways={db.gateways}
+            onUpdateGateways={(gateways) => updateDb({ gateways })}
+            settings={db.settings}
+            onUpdateSettings={(settings) => updateDb({ settings: { ...db.settings, ...settings } })}
+          />
+        );
       default: return (
         <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
           <span className="material-symbols-outlined text-6xl text-text-secondary">construction</span>
@@ -70,18 +95,26 @@ const App: React.FC = () => {
       <Sidebar 
         currentView={currentView} 
         setCurrentView={setCurrentView} 
-        businessName={profile.businessName} 
+        businessName={db.profile.businessName} 
       />
       
       <main className="flex-1 overflow-y-auto max-h-screen scroll-smooth">
         <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-8 py-4 border-b border-border-color dark:border-white/5 flex justify-end items-center gap-4">
+          <div className="mr-auto hidden md:flex items-center gap-2 text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            Local Database Connected
+          </div>
+          
           <button 
             onClick={toggleDarkMode}
             title="Toggle Theme"
             className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 text-text-secondary dark:text-gray-400 transition-all active:scale-90"
           >
-            <span className={`material-symbols-outlined transition-transform duration-500 ${isDarkMode ? 'rotate-[360deg]' : 'rotate-0'}`}>
-              {isDarkMode ? 'light_mode' : 'dark_mode'}
+            <span className={`material-symbols-outlined transition-transform duration-500 ${db.settings.isDarkMode ? 'rotate-[360deg]' : 'rotate-0'}`}>
+              {db.settings.isDarkMode ? 'light_mode' : 'dark_mode'}
             </span>
           </button>
           <button title="Notifications" className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 text-text-secondary dark:text-gray-400 transition-colors">

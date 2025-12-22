@@ -5,12 +5,20 @@ import { Profile, IntegratedEmailGateway } from '../types';
 interface SettingsProps {
   profile: Profile;
   onUpdateProfile: (updates: Partial<Profile>) => void;
+  gateways: IntegratedEmailGateway[];
+  onUpdateGateways: (gateways: IntegratedEmailGateway[]) => void;
+  settings: { isSmsEnabled: boolean; isEmailEnabled: boolean };
+  onUpdateSettings: (updates: Partial<{ isSmsEnabled: boolean; isEmailEnabled: boolean }>) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
-  const [isSmsEnabled, setIsSmsEnabled] = useState(true);
-  const [isEmailEnabled, setIsEmailEnabled] = useState(true);
-  
+const Settings: React.FC<SettingsProps> = ({ 
+  profile, 
+  onUpdateProfile, 
+  gateways, 
+  onUpdateGateways,
+  settings,
+  onUpdateSettings
+}) => {
   // Profile form state
   const [formData, setFormData] = useState<Profile>(profile);
   const [isSaving, setIsSaving] = useState(false);
@@ -20,13 +28,8 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
   const [smsSenderId, setSmsSenderId] = useState('BEANLEAF');
   const [isSavingSms, setIsSavingSms] = useState(false);
 
-  // Integrated Gateways List
-  const [gateways, setGateways] = useState<IntegratedEmailGateway[]>([
-    { id: '1', provider: 'SendGrid', fromAddress: 'hello@beanandleaf.com', apiKey: 'SG.default_key', status: 'Active' }
-  ]);
+  // Email Integration state
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Email Configuration form state
   const [emailProvider, setEmailProvider] = useState('SendGrid');
   const [fromAddress, setFromAddress] = useState('hello@beanandleaf.com');
   const [emailApiKey, setEmailApiKey] = useState('');
@@ -74,20 +77,19 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
     setEmailProvider(gw.provider);
     setFromAddress(gw.fromAddress);
     setEmailApiKey(gw.apiKey);
-    // Scroll to form smoothly
     document.getElementById('email-config-form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleRemoveGateway = (id: string) => {
     if (confirm('Are you sure you want to remove this gateway integration?')) {
-      setGateways(prev => prev.filter(g => g.id !== id));
+      onUpdateGateways(gateways.filter(g => g.id !== id));
       showToast('Integration removed successfully');
       if (editingId === id) resetEmailForm();
     }
   };
 
   const handleSaveEmailGateway = () => {
-    if (!emailApiKey && isEmailEnabled) {
+    if (!emailApiKey && settings.isEmailEnabled) {
       showToast('API Key is required to save configuration', 'error');
       return;
     }
@@ -95,7 +97,7 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
     setIsSavingEmail(true);
     setTimeout(() => {
       if (editingId) {
-        setGateways(prev => prev.map(g => g.id === editingId ? { ...g, provider: emailProvider, fromAddress, apiKey: emailApiKey } : g));
+        onUpdateGateways(gateways.map(g => g.id === editingId ? { ...g, provider: emailProvider, fromAddress, apiKey: emailApiKey } : g));
         showToast('Integration updated successfully!');
       } else {
         const newGateway: IntegratedEmailGateway = {
@@ -105,7 +107,7 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
           apiKey: emailApiKey,
           status: 'Active'
         };
-        setGateways(prev => [...prev, newGateway]);
+        onUpdateGateways([...gateways, newGateway]);
         showToast('New Email Gateway integrated!');
       }
       setIsSavingEmail(false);
@@ -118,11 +120,6 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
       showToast('API Key is required to test connection', 'error');
       return;
     }
-    if (!fromAddress.includes('@')) {
-      showToast('Please provide a valid From Address', 'error');
-      return;
-    }
-
     setIsTestingEmail(true);
     setTimeout(() => {
       setIsTestingEmail(false);
@@ -156,7 +153,6 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-10">
           
-          {/* Active Email Integrations Section */}
           <section className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-6 transition-colors overflow-hidden">
             <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
               <div className="flex items-center gap-4">
@@ -197,16 +193,10 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
                       </div>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => handleEditGateway(gw)}
-                        className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-all"
-                      >
+                      <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
-                      <button 
-                        onClick={() => handleRemoveGateway(gw.id)}
-                        className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all"
-                      >
+                      <button onClick={() => handleRemoveGateway(gw.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 transition-all">
                         <span className="material-symbols-outlined text-[20px]">delete</span>
                       </button>
                     </div>
@@ -216,7 +206,6 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
             </div>
           </section>
 
-          {/* SMS Gateway Section */}
           <section className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-8 transition-colors">
             <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
               <div className="flex items-center gap-4">
@@ -229,178 +218,88 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
                 </div>
               </div>
               <button 
-                onClick={() => setIsSmsEnabled(!isSmsEnabled)}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isSmsEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}
+                onClick={() => onUpdateSettings({ isSmsEnabled: !settings.isSmsEnabled })}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${settings.isSmsEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}
               >
-                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isSmsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${settings.isSmsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
             </div>
 
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${isSmsEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${settings.isSmsEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               <div className="space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Provider</label>
-                <select 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary font-medium outline-none transition-colors"
-                  value={smsProvider}
-                  onChange={(e) => setSmsProvider(e.target.value)}
-                >
+                <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={smsProvider} onChange={(e) => setSmsProvider(e.target.value)}>
                   <option>Twilio</option>
                   <option>Vonage</option>
-                  <option>MessageBird</option>
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Sender ID</label>
-                <input 
-                  type="text" 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary outline-none transition-colors" 
-                  placeholder="e.g. BEANLEAF" 
-                  value={smsSenderId}
-                  onChange={(e) => setSmsSenderId(e.target.value)}
-                />
+                <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" value={smsSenderId} onChange={(e) => setSmsSenderId(e.target.value)} />
               </div>
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Account SID</label>
-                <input type="password" title="SID" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary outline-none transition-colors" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                <input type="password" title="SID" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
               </div>
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Auth Token</label>
-                <input type="password" title="Auth Token" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary outline-none transition-colors" placeholder="••••••••••••••••••••••••••••••••" />
+                <input type="password" title="Auth Token" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none transition-colors" placeholder="••••••••••••••••••••••••••••••••" />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
               <button className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Test Connection</button>
-              <button 
-                onClick={handleSaveSmsGateway}
-                disabled={isSavingSms || !isSmsEnabled}
-                className="px-6 py-2.5 rounded-xl bg-text-main dark:bg-primary text-white text-sm font-bold hover:bg-black dark:hover:bg-orange-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {isSavingSms ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                    Saving...
-                  </>
-                ) : 'Save Changes'}
+              <button onClick={handleSaveSmsGateway} disabled={isSavingSms || !settings.isSmsEnabled} className="px-6 py-2.5 rounded-xl bg-text-main dark:bg-primary text-white text-sm font-bold hover:bg-black dark:hover:bg-orange-600 transition-colors flex items-center gap-2 disabled:opacity-50">
+                {isSavingSms ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </section>
 
-          {/* Email Configuration Form Section */}
           <section id="email-config-form" className="bg-white dark:bg-[#2a2018] rounded-3xl border border-border-color dark:border-white/5 p-8 shadow-sm space-y-8 transition-all duration-500 relative">
-            {editingId && (
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-primary animate-pulse rounded-t-3xl" />
-            )}
-            
+            {editingId && <div className="absolute top-0 left-0 w-full h-1.5 bg-primary animate-pulse rounded-t-3xl" />}
             <div className="flex items-center justify-between border-b border-border-color dark:border-white/10 pb-4">
               <div className="flex items-center gap-4">
                 <div className="size-12 rounded-2xl bg-blue-100 dark:bg-blue-400/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
                   <span className="material-symbols-outlined text-2xl">mail</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-black dark:text-white">
-                    {editingId ? 'Edit Email Integration' : 'Configure New Email Gateway'}
-                  </h3>
-                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Connect SendGrid, Gmail, or Mailgun for newsletters</p>
+                  <h3 className="text-xl font-black dark:text-white">{editingId ? 'Edit Integration' : 'New Gateway'}</h3>
+                  <p className="text-xs text-text-secondary dark:text-gray-400 font-medium">Connect SendGrid, Gmail, or Mailgun</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                {editingId && (
-                  <button 
-                    onClick={resetEmailForm}
-                    className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-primary transition-colors"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-                <button 
-                  onClick={() => setIsEmailEnabled(!isEmailEnabled)}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isEmailEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isEmailEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
+              <button onClick={() => onUpdateSettings({ isEmailEnabled: !settings.isEmailEnabled })} className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${settings.isEmailEnabled ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`}>
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${settings.isEmailEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
 
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${isEmailEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-opacity duration-300 ${settings.isEmailEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               <div className="space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">Provider</label>
-                <select 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary font-medium outline-none transition-colors"
-                  value={emailProvider}
-                  onChange={(e) => setEmailProvider(e.target.value)}
-                >
+                <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none" value={emailProvider} onChange={(e) => setEmailProvider(e.target.value)}>
                   <option>SendGrid</option>
                   <option>Gmail</option>
                   <option>Mailgun</option>
-                  <option>AWS SES</option>
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-black text-text-main dark:text-gray-300">From Address</label>
-                <input 
-                  type="email" 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary outline-none transition-colors" 
-                  placeholder="hello@beanandleaf.com" 
-                  value={fromAddress}
-                  onChange={(e) => setFromAddress(e.target.value)}
-                />
+                <input type="email" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} />
               </div>
               <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-black text-text-main dark:text-gray-300">
-                  {emailProvider === 'Gmail' ? 'App Password / API Key' : 'API Key'}
-                </label>
-                <input 
-                  type="password" 
-                  title="Email API Key" 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary focus:border-primary outline-none transition-colors" 
-                  placeholder={emailProvider === 'Gmail' ? 'xxxx xxxx xxxx xxxx' : 'SG.xxxxxxxxxxxxxxxxxxxxxxxx'} 
-                  value={emailApiKey}
-                  onChange={(e) => setEmailApiKey(e.target.value)}
-                />
-                {emailProvider === 'Gmail' && (
-                  <p className="text-[10px] text-text-secondary dark:text-gray-500 italic mt-1">
-                    Tip: Use an App Password if you have 2FA enabled on your Gmail account.
-                  </p>
-                )}
+                <label className="text-sm font-black text-text-main dark:text-gray-300">API Key</label>
+                <input type="password" title="API Key" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 focus:ring-primary outline-none" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)} />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button 
-                onClick={handleTestEmailConnection}
-                disabled={isTestingEmail || !isEmailEnabled}
-                className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-all flex items-center gap-2 disabled:opacity-50"
-              >
-                {isTestingEmail ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                    Testing...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-sm">network_ping</span>
-                    Test Connection
-                  </>
-                )}
+              <button onClick={handleTestEmailConnection} disabled={isTestingEmail || !settings.isEmailEnabled} className="px-6 py-2.5 rounded-xl border border-border-color dark:border-white/10 text-sm font-bold dark:text-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50">
+                {isTestingEmail ? 'Testing...' : 'Test Connection'}
               </button>
-              <button 
-                onClick={handleSaveEmailGateway}
-                disabled={isSavingEmail || !isEmailEnabled}
-                className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 ${
-                  editingId ? 'bg-primary hover:bg-orange-600' : 'bg-text-main hover:bg-black dark:bg-primary dark:hover:bg-orange-600'
-                }`}
-              >
-                {isSavingEmail ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
-                    {editingId ? 'Updating...' : 'Integrating...'}
-                  </>
-                ) : editingId ? 'Update Integration' : 'Integrate Gateway'}
+              <button onClick={handleSaveEmailGateway} disabled={isSavingEmail || !settings.isEmailEnabled} className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 disabled:opacity-50 ${editingId ? 'bg-primary' : 'bg-text-main dark:bg-primary'}`}>
+                {isSavingEmail ? 'Saving...' : editingId ? 'Update' : 'Integrate'}
               </button>
             </div>
           </section>
-
         </div>
 
         <aside className="space-y-8">
@@ -409,68 +308,18 @@ const Settings: React.FC<SettingsProps> = ({ profile, onUpdateProfile }) => {
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Business Name</label>
-                <input 
-                  type="text" 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none transition-colors" 
-                  value={formData.businessName}
-                  onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                />
+                <input type="text" className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none" value={formData.businessName} onChange={(e) => setFormData({...formData, businessName: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Currency</label>
-                <select 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none transition-colors"
-                  value={formData.currency}
-                  onChange={(e) => setFormData({...formData, currency: e.target.value})}
-                >
-                  <option>USD ($)</option>
-                  <option>EUR (€)</option>
-                  <option>GBP (£)</option>
-                  <option>JPY (¥)</option>
+                <select className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none" value={formData.currency} onChange={(e) => setFormData({...formData, currency: e.target.value})}>
+                  <option>USD ($)</option><option>EUR (€)</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-text-secondary dark:text-gray-500">Timezone</label>
-                <select 
-                  className="w-full rounded-xl border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark dark:text-white p-3 text-sm focus:ring-primary outline-none transition-colors"
-                  value={formData.timezone}
-                  onChange={(e) => setFormData({...formData, timezone: e.target.value})}
-                >
-                  <option>Pacific Standard Time (PST)</option>
-                  <option>Eastern Standard Time (EST)</option>
-                  <option>Greenwich Mean Time (GMT)</option>
-                  <option>Central European Time (CET)</option>
-                </select>
-              </div>
-              <button 
-                onClick={handleUpdateProfile}
-                disabled={isSaving}
-                className="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
-              >
-                {isSaving ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin">refresh</span>
-                    Saving...
-                  </>
-                ) : (
-                  'Update Profile'
-                )}
+              <button onClick={handleUpdateProfile} disabled={isSaving} className="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg shadow-primary/20">
+                {isSaving ? 'Saving...' : 'Update Profile'}
               </button>
             </div>
-          </section>
-
-          <section className="bg-primary/5 dark:bg-primary/10 rounded-3xl border border-primary/20 dark:border-primary/10 p-8 flex flex-col gap-4 transition-colors">
-            <div className="size-10 rounded-full bg-primary text-white flex items-center justify-center">
-              <span className="material-symbols-outlined text-xl">help</span>
-            </div>
-            <h4 className="font-black text-text-main dark:text-white">Need assistance?</h4>
-            <p className="text-xs text-text-secondary dark:text-gray-400 leading-relaxed">
-              If you're having trouble connecting your gateways, please check our documentation or contact our engineering team at dev-support@beanandleaf.com.
-            </p>
-            <button className="text-primary font-bold text-xs uppercase tracking-widest hover:underline mt-2 flex items-center gap-1">
-              Read Documentation
-              <span className="material-symbols-outlined text-sm">open_in_new</span>
-            </button>
           </section>
         </aside>
       </div>
