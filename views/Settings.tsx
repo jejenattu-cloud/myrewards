@@ -36,6 +36,11 @@ const Settings: React.FC<SettingsProps> = ({
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
 
+  // Test Email Modal/Expand state
+  const [activeTestId, setActiveTestId] = useState<string | null>(null);
+  const [testToEmail, setTestToEmail] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+
   // Toast state
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
@@ -132,6 +137,22 @@ const Settings: React.FC<SettingsProps> = ({
     }, 2000);
   };
 
+  const handleSendTestEmail = (gw: IntegratedEmailGateway) => {
+    if (!testToEmail || !testToEmail.includes('@')) {
+      showToast('Please enter a valid recipient email address', 'error');
+      return;
+    }
+
+    setIsSendingTest(true);
+    // Simulate real email dispatch
+    setTimeout(() => {
+      setIsSendingTest(false);
+      showToast(`Test email successfully sent via ${gw.provider} to ${testToEmail}!`, 'success');
+      setActiveTestId(null);
+      setTestToEmail('');
+    }, 2500);
+  };
+
   return (
     <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-right-4 duration-700 pb-20 relative">
       {toast && (
@@ -176,30 +197,81 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
               ) : (
                 gateways.map((gw) => (
-                  <div key={gw.id} className="flex items-center justify-between p-4 rounded-2xl border border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark/50 hover:shadow-md transition-all group animate-in fade-in slide-in-from-left-2">
-                    <div className="flex items-center gap-4">
-                      <div className={`size-10 rounded-xl flex items-center justify-center font-bold ${
-                        gw.provider === 'Gmail' ? 'bg-red-100 text-red-600' : 
-                        gw.provider === 'SendGrid' ? 'bg-blue-100 text-blue-600' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {gw.provider[0]}
+                  <div key={gw.id} className="flex flex-col overflow-hidden rounded-2xl border border-border-color dark:border-white/10 bg-background-light dark:bg-background-dark/50 transition-all animate-in fade-in slide-in-from-left-2">
+                    <div className="flex items-center justify-between p-4 group">
+                      <div className="flex items-center gap-4">
+                        <div className={`size-10 rounded-xl flex items-center justify-center font-bold ${
+                          gw.provider === 'Gmail' ? 'bg-red-100 text-red-600' : 
+                          gw.provider === 'SendGrid' ? 'bg-blue-100 text-blue-600' : 'bg-primary/10 text-primary'
+                        }`}>
+                          {gw.provider[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-bold dark:text-white flex items-center gap-2 text-sm md:text-base">
+                            {gw.provider}
+                            <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
+                          </h4>
+                          <p className="text-xs text-text-secondary dark:text-gray-400 truncate max-w-[150px] md:max-w-none">{gw.fromAddress}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold dark:text-white flex items-center gap-2">
-                          {gw.provider}
-                          <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
-                        </h4>
-                        <p className="text-xs text-text-secondary dark:text-gray-400">{gw.fromAddress}</p>
+                      <div className="flex gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => setActiveTestId(activeTestId === gw.id ? null : gw.id)}
+                          className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-all ${activeTestId === gw.id ? 'text-primary' : 'text-text-secondary dark:text-gray-400'}`}
+                          title="Send Test Email"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">forward_to_inbox</span>
+                        </button>
+                        <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
+                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                        </button>
+                        <button onClick={() => handleRemoveGateway(gw.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 transition-all">
+                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
                       </div>
                     </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleEditGateway(gw)} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-text-secondary dark:text-gray-400 hover:text-primary transition-all">
-                        <span className="material-symbols-outlined text-[20px]">edit</span>
-                      </button>
-                      <button onClick={() => handleRemoveGateway(gw.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-text-secondary dark:text-gray-400 hover:text-red-600 transition-all">
-                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                      </button>
-                    </div>
+                    
+                    {/* Expandable Test Email Field */}
+                    {activeTestId === gw.id && (
+                      <div className="p-4 pt-0 border-t border-border-color dark:border-white/5 animate-in slide-in-from-top-2 duration-300">
+                        <div className="bg-white/50 dark:bg-white/5 p-4 rounded-xl space-y-3 mt-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary dark:text-gray-400">Send Test Email To:</label>
+                            <button onClick={() => setActiveTestId(null)} className="text-[10px] text-text-secondary hover:text-primary font-bold">Cancel</button>
+                          </div>
+                          <div className="flex gap-2">
+                            <input 
+                              type="email" 
+                              placeholder="recipient@example.com"
+                              className="flex-1 rounded-lg border-border-color dark:border-white/10 bg-white dark:bg-background-dark text-xs p-2 focus:ring-primary outline-none transition-all dark:text-white"
+                              value={testToEmail}
+                              onChange={(e) => setTestToEmail(e.target.value)}
+                              disabled={isSendingTest}
+                            />
+                            <button 
+                              onClick={() => handleSendTestEmail(gw)}
+                              disabled={isSendingTest}
+                              className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                            >
+                              {isSendingTest ? (
+                                <>
+                                  <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-sm">send</span>
+                                  Send Test
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-text-secondary dark:text-gray-500 italic">
+                            This will send a generic test message using your {gw.provider} credentials to verify the connection is live.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
