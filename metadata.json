@@ -1,0 +1,8 @@
+{
+  "name": "Bean & Leaf Admin Console",
+  "description": "A comprehensive management dashboard for cafe owners to track engagement, manage customer loyalty, and launch targeted marketing campaigns.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
