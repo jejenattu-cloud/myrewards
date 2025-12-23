@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Customer, IntegratedEmailGateway, IntegratedSmsGateway } from '../types';
 import { EmailService } from '../services/emailService';
 import { SmsService } from '../services/smsService';
+import { generateAiAvatar } from '../services/geminiService';
 
 interface CustomersProps {
   customers: Customer[];
@@ -18,6 +19,7 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isTestingSms, setIsTestingSms] = useState(false);
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
 
   // Form State
   const [newName, setNewName] = useState('');
@@ -25,6 +27,9 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
   const [newPhone, setNewPhone] = useState('');
   const [newStatus, setNewStatus] = useState<'Subscribed' | 'Unsubscribed'>('Subscribed');
   const [newPoints, setNewPoints] = useState(0);
+  const [newAvatar, setNewAvatar] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -45,6 +50,7 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
     setNewPhone(cust.phone);
     setNewStatus(cust.status);
     setNewPoints(cust.points);
+    setNewAvatar(cust.avatar);
     setIsModalOpen(true);
   };
 
@@ -54,6 +60,7 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
     setNewPhone('');
     setNewStatus('Subscribed');
     setNewPoints(0);
+    setNewAvatar(null);
     setEditingCustomer(null);
     setIsModalOpen(false);
   };
@@ -69,11 +76,13 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
     
     // Simulate DB latency
     setTimeout(() => {
+      const avatarToSave = newAvatar || `https://picsum.photos/seed/${Date.now()}/100/100`;
+      
       if (editingCustomer) {
         // Update logic
         const updatedList = customers.map(c => 
           c.id === editingCustomer.id 
-            ? { ...c, name: newName, email: newEmail, phone: newPhone, status: newStatus, points: newPoints }
+            ? { ...c, name: newName, email: newEmail, phone: newPhone, status: newStatus, points: newPoints, avatar: avatarToSave }
             : c
         );
         onUpdateCustomers(updatedList);
@@ -90,7 +99,7 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
           joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
           lastVisit: 'Never',
           tags: ['New'],
-          avatar: `https://picsum.photos/seed/${Date.now()}/100/100`,
+          avatar: avatarToSave,
         };
         onUpdateCustomers([newCustomer, ...customers]);
       }
@@ -98,6 +107,35 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
       setIsSubmitting(false);
       resetForm();
     }, 800);
+  };
+
+  const handleAiGenerateAvatar = async () => {
+    if (!newName) {
+      alert("Please enter the customer's name first so the AI can craft a matching persona.");
+      return;
+    }
+    setIsGeneratingAvatar(true);
+    try {
+      const base64Image = await generateAiAvatar(newName);
+      if (base64Image) {
+        setNewAvatar(base64Image);
+      }
+    } catch (err) {
+      alert("AI Image generation failed. Please check your API key.");
+    } finally {
+      setIsGeneratingAvatar(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleTestEmail = async () => {
@@ -282,28 +320,56 @@ const Customers: React.FC<CustomersProps> = ({ customers, onUpdateCustomers, gat
             <form onSubmit={handleSaveCustomer} className="p-8 space-y-6">
               <div className="grid grid-cols-1 gap-6">
                 
-                {editingCustomer && (
-                  <div className="flex items-center gap-6 p-4 bg-primary/5 dark:bg-primary/10 rounded-3xl border border-primary/10">
-                    <img src={editingCustomer.avatar} className="size-16 rounded-2xl object-cover border-2 border-white dark:border-white/5 shadow-md" alt="Avatar" />
-                    <div className="flex-1">
-                       <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Loyalty Statistics</p>
-                       <div className="flex gap-4">
-                         <div className="flex flex-col">
-                            <span className="text-lg font-black dark:text-white leading-tight">{editingCustomer.points}</span>
-                            <span className="text-[9px] font-bold text-text-secondary uppercase">Points</span>
+                {/* Avatar Selection Section */}
+                <div className="flex flex-col items-center justify-center p-6 bg-primary/5 dark:bg-primary/10 rounded-3xl border border-primary/10 gap-6">
+                   <div className="relative group">
+                      <div className={`size-24 rounded-full border-4 border-white dark:border-white/10 shadow-xl overflow-hidden relative ${isGeneratingAvatar ? 'animate-pulse' : ''}`}>
+                         {isGeneratingAvatar ? (
+                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-4xl text-primary animate-spin">auto_awesome</span>
+                           </div>
+                         ) : null}
+                         <img 
+                            src={newAvatar || (editingCustomer?.avatar) || `https://picsum.photos/seed/${newName || 'placeholder'}/100/100`} 
+                            className="size-full object-cover transition-transform group-hover:scale-110" 
+                            alt="Preview" 
+                         />
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                            <span className="material-symbols-outlined text-white">photo_camera</span>
                          </div>
-                         <div className="flex flex-col">
-                            <span className="text-lg font-black dark:text-white leading-tight">{editingCustomer.tier}</span>
-                            <span className="text-[9px] font-bold text-text-secondary uppercase">Current Tier</span>
-                         </div>
-                         <div className="flex flex-col">
-                            <span className="text-lg font-black dark:text-white leading-tight">{editingCustomer.joinedDate}</span>
-                            <span className="text-[9px] font-bold text-text-secondary uppercase">Joined</span>
-                         </div>
-                       </div>
-                    </div>
-                  </div>
-                )}
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 bg-green-500 size-6 rounded-full border-4 border-white dark:border-[#2a2018] flex items-center justify-center">
+                         <span className="material-symbols-outlined text-white text-[12px] filled">check</span>
+                      </div>
+                   </div>
+
+                   <div className="flex gap-3 w-full">
+                      <button 
+                        type="button"
+                        onClick={handleAiGenerateAvatar}
+                        disabled={isGeneratingAvatar}
+                        className="flex-1 py-2.5 bg-white dark:bg-background-dark border border-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                         <span className="material-symbols-outlined text-lg filled">auto_awesome</span>
+                         {isGeneratingAvatar ? 'Painting...' : 'Generate with AI'}
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 py-2.5 bg-white dark:bg-background-dark border border-gray-200 dark:border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary hover:bg-gray-50 dark:hover:bg-white/5 transition-all shadow-sm flex items-center justify-center gap-2"
+                      >
+                         <span className="material-symbols-outlined text-lg">upload</span>
+                         Upload Photo
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                   </div>
+                </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary dark:text-gray-400 ml-1">Full Name</label>
