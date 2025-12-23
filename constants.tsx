@@ -13,7 +13,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     joinedDate: 'Jan 2023',
     lastVisit: 'Today, 9:30 AM',
     tags: ['VIP', 'Espresso'],
-    avatar: 'https://picsum.photos/seed/john/100/100',
+    avatar: 'https://picsum.photos/seed/john123/100/100',
   },
   {
     id: '2',
@@ -26,7 +26,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     joinedDate: 'Mar 2023',
     lastVisit: 'Oct 12, 2023',
     tags: ['Pastries'],
-    avatar: 'https://picsum.photos/seed/sarah/100/100',
+    avatar: 'https://picsum.photos/seed/sarah789/100/100',
   },
   {
     id: '3',
@@ -39,7 +39,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     joinedDate: 'Yesterday',
     lastVisit: 'Yesterday, 4:15 PM',
     tags: ['New'],
-    avatar: 'https://picsum.photos/seed/mike/100/100',
+    avatar: 'https://picsum.photos/seed/mike456/100/100',
   },
   {
     id: '4',
@@ -52,7 +52,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     joinedDate: 'Aug 2023',
     lastVisit: '2 days ago',
     tags: ['VIP', 'Latte'],
-    avatar: 'https://picsum.photos/seed/emily/100/100',
+    avatar: 'https://picsum.photos/seed/emily999/100/100',
   },
 ];
 
