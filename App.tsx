@@ -139,7 +139,9 @@ const App: React.FC = () => {
         return (
           <Customers 
             customers={db.customers} 
-            onUpdateCustomers={(customers) => updateDb({ customers })} 
+            onUpdateCustomers={(customers) => updateDb({ customers })}
+            gateways={db.gateways}
+            smsGateways={db.smsGateways || []}
           />
         );
       case View.CAMPAIGNS: 
